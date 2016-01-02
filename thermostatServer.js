@@ -1,13 +1,8 @@
 /*
-Simple server to serve a related peer client
+  Simple server to serve a related peer client
+  Use browser to view pages at http://localhost:3000/index.html.
+  Ctrl+C to stop server (in Windows CMD console)
 */
-
-/*
-Use browser to view pages at http://localhost:3000/index.html.
-
-*/
-
-//Cntl+C to stop server (in Windows CMD console)
 
 
 
@@ -30,27 +25,27 @@ var onceOFF = false;
 
 var furnaceIsOn = false; //temporary boolean to represent
                          //furnace for now which we will use to send to the furnace
+
 var desiredFurnaceState = false;
 
-  therm.on("run", function() {
-    desiredFurnaceState = true;
-  });
-  therm.on("stop", function() {
-    desiredFurnaceState = false;
+therm.on("run", function() {
+  desiredFurnaceState = true;
+});
 
-  });
+therm.on("stop", function() {
+  desiredFurnaceState = false;
+});
 
-  //Keep updating the temperature and tell thermostat
-  //what the temperature is
-
-  //start a timeout timer and recursively restart it each time.
-  setTimeout(function again(){
-     if(furnaceIsOn ) roomTemp++;
-     else roomTemp--;
-     therm.temp(roomTemp); //tell thermostat the room temp
-     console.log('TEMP: ' + roomTemp);
-     setTimeout(again, 1000); //recursively restart timeout
-     }, 1000);
+//Keep updating the temperature and tell thermostat
+//what the temperature is
+//start a timeout timer and recursively restart it each time.
+setTimeout(function again(){
+  if(furnaceIsOn ) roomTemp++;
+  else roomTemp--;
+  therm.temp(roomTemp); //tell thermostat the room temp
+  console.log('TEMP: ' + roomTemp);
+  setTimeout(again, 1000); //recursively restart timeout
+}, 1000);
 
 function sendResponse(weatherData, res){
   var page =  '<!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN"' +
@@ -73,28 +68,28 @@ function sendResponse(weatherData, res){
 					'<br><br>Current Temperature:' +
 					'<p id="temp">' + roomTemp + '&deg C</p>' +
 					'<progress id="therm" value="'+(roomTemp+40)+'" max="80"></progress><br><br>';
-  if(weatherData){
-    var weather = JSON.parse(weatherData);
-    page += '<h4>Ottawa Weather Info</h4><p>' + weather.name + '<pre>' + weather.main.temp + '&degC'+'</p>';
-  }
-  page += '</center></form></body></html>';
-  res.end(page);
+
+          if(weatherData){
+            var weather = JSON.parse(weatherData);
+            page += '<h4>Ottawa Weather Info</h4><p>' + weather.name + '<pre>' + weather.main.temp + '&degC'+'</p>';
+          }
+          page += '</center></form></body></html>';
+          res.end(page);
 }
-  function increaseTemp()
-  {
-    console.log('increased');
-    desiredT++;
-	therm.setThermostat(desiredT);
 
-  }
-  function decreaseTemp()
-  {
-    console.log('decreased');
-    desiredT--;
-	therm.setThermostat(desiredT);
-  }
+function increaseTemp() {
+  console.log('increased');
+  desiredT++;
+  therm.setThermostat(desiredT);
+}
 
-  function parseWeather(weatherResponse, res) {
+function decreaseTemp() {
+  console.log('decreased');
+  desiredT--;
+	therm.setThermostat(desiredT);
+}
+
+function parseWeather(weatherResponse, res) {
   var weatherData = '';
   weatherResponse.on('data', function (chunk) {
     weatherData += chunk;
@@ -116,60 +111,57 @@ function getWeather(city, res, key){
 
 //Private SSL key and signed certificate
 var options = {
-key: fs.readFileSync('serverkey.pem'),
-cert: fs.readFileSync('servercert.crt')
+  key: fs.readFileSync('serverkey.pem'),
+  cert: fs.readFileSync('servercert.crt')
 };
 
 https.createServer(options, function (request,response){
-     var urlObj = url.parse(request.url, true, false);
-     var query = urlObj.query;
-      //web client
+  var urlObj = url.parse(request.url, true, false);
+  var query = urlObj.query;
 
-      // when the broweser make the request to the server, handles teh websites
-     if (request.method ==='GET') {
-		 response.writeHead(200, {'Content-Type': 'text/html'});
-		 getWeather(4905006, response,'f6b6aed7d912676167029255a9e0444c');
-     }
-	 if(urlObj.pathname === '/increase')
-	 {
-	   increaseTemp();
-	 }
-	 if(urlObj.pathname === '/decrease')
-	 {
-	   decreaseTemp();
-	 }
-   //anything that is not a GET request which at the moment is the POST request coming from the client
-   //I need to handle the web client and also the  furnace client with else if. else if( request.method == 'POST')
-   else if(urlObj.pathname === '/furnace') {
-      var jsonData = '';
+  //web client
+  // when the broweser make the request to the server, handles teh websites
+  if (request.method ==='GET') {
+    response.writeHead(200, {'Content-Type': 'text/html'});
+    getWeather(4905006, response,'f6b6aed7d912676167029255a9e0444c');
+  }
+  if(urlObj.pathname === '/increase') {
+    increaseTemp();
+	}
+  if(urlObj.pathname === '/decrease') {
+    decreaseTemp();
+	}
 
-     request.on('data', function(chunk) {
-        jsonData += chunk;
-     });
-     request.on('end', function(){
-       //what the furnace sent us is within the reqObj
-        var reqObj = JSON.parse(jsonData);
-		    if(reqObj.stateOfFurnace == true && onceON == false)
-			{
-			  onceOFF = false;
-              console.log('Furnace is: ON');
-			  onceON = true;
-			}
-		    if(reqObj.stateOfFurnace == false && onceOFF == false)
-			{
-			  onceON = false;
-              console.log('Furnace is: OFF');
-			  onceOFF = true;
-			}
-            //update furnace state once received by furnace furnace.
-            furnaceIsOn = reqObj.stateOfFurnace;
-
-        var resObj = {
-            'desiredFurnaceState' : desiredFurnaceState };
-        response.writeHead(200);
-        response.end(JSON.stringify(resObj));
-     });
-   }
- }).listen(3000);
-
-console.log('Server Running at http://127.0.0.1:3000  CNTL-C to quit');
+  //anything that is not a GET request which at the moment is the POST request coming from the client
+  //I need to handle the web client and also the  furnace client with else if. else if( request.method == 'POST')
+  else if(urlObj.pathname === '/furnace') {
+    var jsonData = '';
+    request.on('data', function(chunk) {
+      jsonData += chunk;
+    });
+    
+    request.on('end', function(){
+      //what the furnace sent us is within the reqObj
+      var reqObj = JSON.parse(jsonData);
+		
+      if(reqObj.stateOfFurnace == true && onceON == false) {
+        onceOFF = false;
+        console.log('Furnace is: ON');
+        onceON = true;
+      }
+      if(reqObj.stateOfFurnace == false && onceOFF == false) {
+        onceON = false;
+        console.log('Furnace is: OFF');
+        onceOFF = true;
+      }
+      //update furnace state once received by furnace furnace.
+      furnaceIsOn = reqObj.stateOfFurnace;
+      var resObj = {
+        'desiredFurnaceState' : desiredFurnaceState 
+      };
+      response.writeHead(200);
+      response.end(JSON.stringify(resObj));
+    });
+  }
+}).listen(3000);
+console.log('Server Running at https://127.0.0.1:3000  CNTL-C to quit');
